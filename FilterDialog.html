@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+    
+    .container {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      max-width: 350px;
+    }
+    
+    .title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .label {
+      display: block;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+    
+    .input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 2px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+    }
+    
+    .input:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+    
+    .hint {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 3px;
+    }
+    
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 25px;
+    }
+    
+    .btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-cancel {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    
+    .btn-cancel:hover {
+      background: #e5e7eb;
+    }
+    
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+    
+    .loading {
+      display: none;
+      text-align: center;
+      color: #6b7280;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">🔍 ycombinator</div>
+    
+    <div class="form-group">
+      <label class="label">Min Comments:</label>
+      <input type="number" id="minComments" class="input" value="100" min="0" step="10">
+      <div class="hint">Default: 100+ comments</div>
+    </div>
+    
+    <div class="form-group">
+      <label class="label">Min Score:</label>
+      <input type="number" id="minScore" class="input" value="" min="0" step="50" placeholder="Any score">
+      <div class="hint">Leave empty for any score</div>
+    </div>
+    
+    <div class="buttons">
+      <button class="btn btn-cancel" onclick="google.script.host.close()">
+        Cancel
+      </button>
+      <button class="btn btn-primary" onclick="filterAndShow()">
+        🔍 Filter
+      </button>
+    </div>
+    
+    <div class="loading" id="loading">
+      ⏳ Filtering posts...
+    </div>
+  </div>
+
+  <script>
+    function filterAndShow() {
+      // Get values
+      const minComments = parseInt(document.getElementById('minComments').value) || 100;
+      const minScore = parseInt(document.getElementById('minScore').value) || 0;
+      
+      // Show loading
+      document.getElementById('loading').style.display = 'block';
+      document.querySelector('.btn-primary').disabled = true;
+      
+      // Call server function
+      google.script.run
+        .withSuccessHandler(showResults)
+        .withFailureHandler(showError)
+        .filterPosts(minComments, minScore);
+    }
+    
+    function showResults(posts) {
+      if (!posts || posts.length === 0) {
+        alert('No posts found matching your criteria. Try lowering the thresholds.');
+        document.getElementById('loading').style.display = 'none';
+        document.querySelector('.btn-primary').disabled = false;
+        return;
+      }
+      
+      // Close this dialog
+      google.script.host.close();
+      
+      // Call server function to show results dialog
+      google.script.run
+        .withSuccessHandler(() => {
+          console.log('Results dialog opened');
+        })
+        .withFailureHandler(showError)
+        .showResultsDialog(posts);
+    }
+    }
+    
+    function showError(error) {
+      alert('Error: ' + error.message);
+      document.getElementById('loading').style.display = 'none';
+      document.querySelector('.btn-primary').disabled = false;
+    }
+    
+    // Allow Enter key to trigger filter
+    document.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        filterAndShow();
+      }
+    });
+  </script>
+</body>
+</html>
