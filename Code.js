@@ -42,14 +42,15 @@ function filterPosts(minComments = 100, minScore = 0) {
     let headerRow = 0;
     let headers = [];
     
-    // Look for header row (contains column names like "title", "score", "comments", etc.)
+    // Look for header row (contains column names like "rank", "titleline", "score", etc.)
     for (let i = 0; i < Math.min(5, data.length); i++) {
       const row = data[i];
       if (row.some(cell => 
         cell && typeof cell === 'string' && 
-        (cell.toLowerCase().includes('title') || 
+        (cell.toLowerCase().includes('rank') || 
+         cell.toLowerCase().includes('titleline') || 
          cell.toLowerCase().includes('score') || 
-         cell.toLowerCase().includes('comment'))
+         cell.toLowerCase().includes('subline'))
       )) {
         headerRow = i;
         headers = row.map(h => h ? h.toString().toLowerCase().trim() : '');
@@ -62,7 +63,7 @@ function filterPosts(minComments = 100, minScore = 0) {
       throw new Error('Could not find header row. Please make sure your data has column headers.');
     }
     
-    // Find column indexes for HN data structure
+    // Find column indexes for HN data structure based on actual data format
     const columnIndexes = {
       rank: findColumnIndex(headers, ['rank']),
       titleline: findColumnIndex(headers, ['titleline']),          // Title text
@@ -71,7 +72,8 @@ function filterPosts(minComments = 100, minScore = 0) {
       score: findColumnIndex(headers, ['score']),                  // Points
       comments: findColumnIndex(headers, ['subline (3)']),         // Comments
       age: findColumnIndex(headers, ['age']),                      // Time ago
-      author: findColumnIndex(headers, ['hnuser'])                 // Username
+      author: findColumnIndex(headers, ['hnuser']),                // Username
+      subline: findColumnIndex(headers, ['subline'])               // Full subline text
     };
     
     Logger.log('Column indexes found:', columnIndexes);
@@ -80,59 +82,77 @@ function filterPosts(minComments = 100, minScore = 0) {
     if (columnIndexes.titleline === -1) {
       throw new Error('titleline column not found');
     }
-    if (columnIndexes.score === -1) {
-      throw new Error('score column not found');
-    }
-    if (columnIndexes.comments === -1) {
-      throw new Error('subline (3) column not found');
+    if (columnIndexes.score === -1 && columnIndexes.subline === -1) {
+      throw new Error('Neither score nor subline column found');
     }
     
     const filteredPosts = [];
     
-    // Process data rows in pairs (title row + meta row)
-    for (let i = headerRow + 1; i < data.length; i += 2) {
-      const titleRow = data[i];
-      const metaRow = data[i + 1];
+    // Process data rows - handle both paired and single row formats
+    for (let i = headerRow + 1; i < data.length; i++) {
+      const currentRow = data[i];
       
-      // Skip if we don't have both rows
-      if (!titleRow || !metaRow) continue;
+      // Skip empty rows
+      if (!currentRow || currentRow.every(cell => !cell)) continue;
       
-      // Skip if title row doesn't have rank (not a post)
-      const rank = getColumnValue(titleRow, columnIndexes.rank, '');
-      if (!rank) continue;
+      // Get rank to identify if this is a title row
+      const rank = getColumnValue(currentRow, columnIndexes.rank, '');
       
-      // Extract data from title row
-      const title = getColumnValue(titleRow, columnIndexes.titleline, 'No title');
-      const link = getColumnValue(titleRow, columnIndexes.titlelineHref, '');
-      const domain = getColumnValue(titleRow, columnIndexes.sitestr, '');
-      
-      // Extract data from meta row
-      const scoreText = getColumnValue(metaRow, columnIndexes.score, '0');
-      const score = extractNumber(scoreText);
-      
-      const commentsText = getColumnValue(metaRow, columnIndexes.comments, '0');
-      const comments = extractNumber(commentsText);
-      
-      const age = getColumnValue(metaRow, columnIndexes.age, '');
-      const author = getColumnValue(metaRow, columnIndexes.author, '');
-      
-      Logger.log(`Processing post #${rank}: ${title} - ${score}pts, ${comments}cmt`);
-      
-      // Apply filters
-      if (score >= minScore && comments >= minComments && title !== 'No title' && title.trim() !== '') {
-        filteredPosts.push({
-          title: title,
-          link: link,
-          domain: domain,
-          score: score,
-          comments: comments,
-          age: cleanAge(age),
-          author: author,
-          displayText: `${title} (${score}pts, ${comments}cmt) - ${domain}`
-        });
-        Logger.log(`✓ Post added: ${title}`);
-      } else {
-        Logger.log(`✗ Post filtered out: ${title} (score: ${score}/${minScore}, comments: ${comments}/${minComments})`);
+      // If this row has a rank, it's a title row
+      if (rank && rank.toString().trim() !== '') {
+        // Extract data from title row
+        const title = getColumnValue(currentRow, columnIndexes.titleline, 'No title');
+        const link = getColumnValue(currentRow, columnIndexes.titlelineHref, '');
+        const domain = getColumnValue(currentRow, columnIndexes.sitestr, '');
+        
+        // Look for meta data in next row or current row
+        let scoreText = getColumnValue(currentRow, columnIndexes.score, '0');
+        let commentsText = getColumnValue(currentRow, columnIndexes.comments, '0');
+        let age = getColumnValue(currentRow, columnIndexes.age, '');
+        let author = getColumnValue(currentRow, columnIndexes.author, '');
+        let sublineText = getColumnValue(currentRow, columnIndexes.subline, '');
+        
+        // If score is empty, check next row (meta row)
+        if ((!scoreText || scoreText === '0') && i + 1 < data.length) {
+          const nextRow = data[i + 1];
+          if (nextRow) {
+            scoreText = getColumnValue(nextRow, columnIndexes.score, scoreText);
+            commentsText = getColumnValue(nextRow, columnIndexes.comments, commentsText);
+            age = getColumnValue(nextRow, columnIndexes.age, age);
+            author = getColumnValue(nextRow, columnIndexes.author, author);
+            sublineText = getColumnValue(nextRow, columnIndexes.subline, sublineText);
+          }
+        }
+        
+        // Extract numbers from text
+        const score = extractNumber(scoreText) || extractNumberFromSubline(sublineText, 'points');
+        const comments = extractNumber(commentsText) || extractNumberFromSubline(sublineText, 'comments');
+        
+        // Extract domain from sitebit if sitestr is empty
+        let finalDomain = domain;
+        if (!finalDomain) {
+          const sitebit = getColumnValue(currentRow, findColumnIndex(headers, ['sitebit']), '');
+          finalDomain = sitebit.replace(/[()]/g, '').trim();
+        }
+        
+        Logger.log(`Processing post #${rank}: ${title} - ${score}pts, ${comments}cmt`);
+        
+        // Apply filters
+        if (score >= minScore && comments >= minComments && title !== 'No title' && title.trim() !== '') {
+          filteredPosts.push({
+            title: title,
+            link: link,
+            domain: finalDomain,
+            score: score,
+            comments: comments,
+            age: cleanAge(age),
+            author: author,
+            displayText: `${title} (${score}pts, ${comments}cmt) - ${finalDomain}`
+          });
+          Logger.log(`✓ Post added: ${title}`);
+        } else {
+          Logger.log(`✗ Post filtered out: ${title} (score: ${score}/${minScore}, comments: ${comments}/${minComments})`);
+        }
       }
     }
     
@@ -187,6 +207,27 @@ function extractNumber(text) {
   if (!text) return 0;
   const match = text.toString().match(/\d+/);
   return match ? parseInt(match[0]) : 0;
+}
+
+/**
+ * Extract number from subline text based on keyword
+ */
+function extractNumberFromSubline(sublineText, keyword) {
+  if (!sublineText) return 0;
+  
+  const text = sublineText.toString().toLowerCase();
+  
+  if (keyword === 'points') {
+    // Look for "X points" pattern
+    const pointsMatch = text.match(/(\d+)\s*points?/);
+    return pointsMatch ? parseInt(pointsMatch[1]) : 0;
+  } else if (keyword === 'comments') {
+    // Look for "X comments" pattern
+    const commentsMatch = text.match(/(\d+)\s*comments?/);
+    return commentsMatch ? parseInt(commentsMatch[1]) : 0;
+  }
+  
+  return 0;
 }
 
 /**
@@ -381,7 +422,7 @@ function showResultsDialog(posts) {
       </html>
     `;
     
-    const html = HtmlService.createHtml(resultsHtml)
+    const html = HtmlService.createHtmlOutput(resultsHtml)
       .setWidth(700)
       .setHeight(600);
     
@@ -476,7 +517,8 @@ function debugDataParsing() {
         score: findColumnIndex(headers, ['score']),                  // Points
         comments: findColumnIndex(headers, ['subline (3)']),         // Comments
         age: findColumnIndex(headers, ['age']),                      // Time ago
-        author: findColumnIndex(headers, ['hnuser'])                 // Username
+        author: findColumnIndex(headers, ['hnuser']),                // Username
+        subline: findColumnIndex(headers, ['subline'])               // Full subline text
       };
       
       Logger.log('\n--- Column mapping ---');
@@ -488,26 +530,47 @@ function debugDataParsing() {
         }
       });
       
-      // Show sample data from first few post pairs
-      Logger.log('\n--- Sample data (pairs) ---');
-      for (let i = headerRow + 1; i < Math.min(headerRow + 7, data.length); i += 2) {
-        const titleRow = data[i];
-        const metaRow = data[i + 1];
+      // Show sample data from first few posts
+      Logger.log('\n--- Sample data ---');
+      for (let i = headerRow + 1; i < Math.min(headerRow + 10, data.length); i++) {
+        const currentRow = data[i];
         
-        if (!titleRow || !metaRow) continue;
+        if (!currentRow || currentRow.every(cell => !cell)) continue;
         
-        const rank = getColumnValue(titleRow, columnIndexes.rank);
-        const title = getColumnValue(titleRow, columnIndexes.titleline);
-        const link = getColumnValue(titleRow, columnIndexes.titlelineHref);
-        const score = getColumnValue(metaRow, columnIndexes.score);
-        const comments = getColumnValue(metaRow, columnIndexes.comments);
+        const rank = getColumnValue(currentRow, columnIndexes.rank);
         
-        Logger.log(`Post #${rank}:`);
-        Logger.log(`  Title: ${title}`);
-        Logger.log(`  Link: ${link}`);
-        Logger.log(`  Score: ${score} -> ${extractNumber(score)}`);
-        Logger.log(`  Comments: ${comments} -> ${extractNumber(comments)}`);
-        Logger.log(`---`);
+        // Only process rows with rank (title rows)
+        if (rank && rank.toString().trim() !== '') {
+          const title = getColumnValue(currentRow, columnIndexes.titleline);
+          const link = getColumnValue(currentRow, columnIndexes.titlelineHref);
+          const domain = getColumnValue(currentRow, columnIndexes.sitestr);
+          
+          // Check current row and next row for meta data
+          let scoreText = getColumnValue(currentRow, columnIndexes.score);
+          let commentsText = getColumnValue(currentRow, columnIndexes.comments);
+          let sublineText = getColumnValue(currentRow, columnIndexes.subline);
+          
+          if ((!scoreText || scoreText === '0') && i + 1 < data.length) {
+            const nextRow = data[i + 1];
+            if (nextRow) {
+              scoreText = getColumnValue(nextRow, columnIndexes.score, scoreText);
+              commentsText = getColumnValue(nextRow, columnIndexes.comments, commentsText);
+              sublineText = getColumnValue(nextRow, columnIndexes.subline, sublineText);
+            }
+          }
+          
+          const score = extractNumber(scoreText) || extractNumberFromSubline(sublineText, 'points');
+          const comments = extractNumber(commentsText) || extractNumberFromSubline(sublineText, 'comments');
+          
+          Logger.log(`Post #${rank}:`);
+          Logger.log(`  Title: ${title}`);
+          Logger.log(`  Link: ${link}`);
+          Logger.log(`  Domain: ${domain}`);
+          Logger.log(`  Score: ${scoreText} -> ${score}`);
+          Logger.log(`  Comments: ${commentsText} -> ${comments}`);
+          Logger.log(`  Subline: ${sublineText}`);
+          Logger.log(`---`);
+        }
       }
     }
     
