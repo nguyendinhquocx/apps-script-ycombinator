@@ -10,7 +10,7 @@ function showFilterDialog() {
       .setHeight(300);
     
     SpreadsheetApp.getUi()
-      .showModalDialog(html, '🔍 Filter HN Posts');
+      .showModalDialog(html, 'Filter');
   } catch (error) {
     SpreadsheetApp.getUi().alert('Error: ' + error.toString());
   }
@@ -344,7 +344,7 @@ function showResultsDialog(posts) {
       </head>
       <body>
         <div class="container">
-          <div class="title">📋 Found ${posts.length} Posts (Top by Comments)</div>
+          <div class="title">Có ${posts.length} bài phù hợp</div>
           
           <div class="select-all">
             <label>
@@ -365,8 +365,8 @@ function showResultsDialog(posts) {
           <div class="post-info">
             <div class="post-title">${truncatedTitle}</div>
             <div class="post-meta">
-              💬 ${post.comments} comments • ⭐ ${post.score} points • ⏰ ${post.age} • 🌐 ${post.domain}
-              ${post.author ? ' • 👤 ' + post.author : ''}
+              ${post.comments} comments • ${post.score} points • ${post.age} • ${post.domain}
+              ${post.author ? ' • ' + post.author : ''}
             </div>
           </div>
         </div>
@@ -378,7 +378,7 @@ function showResultsDialog(posts) {
           
           <div class="buttons">
             <button class="btn btn-cancel" onclick="google.script.host.close()">Cancel</button>
-            <button class="btn btn-primary" onclick="openSelected()">🚀 Open Selected</button>
+            <button class="btn btn-primary" onclick="openSelected()">OK</button>
           </div>
         </div>
         
@@ -427,7 +427,7 @@ function showResultsDialog(posts) {
       .setHeight(600);
     
     SpreadsheetApp.getUi()
-      .showModalDialog(html, '🎯 HN Posts Filter Results');
+      .showModalDialog(html, 'Kết quả');
       
   } catch (error) {
     SpreadsheetApp.getUi().alert('Error showing results: ' + error.toString());
@@ -449,7 +449,7 @@ function addFilterButton() {
     SpreadsheetApp.getUi().alert(
       'To add the filter button:\n\n' +
       '1. Go to Insert → Drawing\n' +
-      '2. Add a text box with "🔍 Filter HN Posts"\n' +
+      '2. Add a text box with "Filter"\n' +
       '3. Save and close\n' +
       '4. Click the drawing, then click the 3-dot menu\n' +
       '5. Choose "Assign script" and enter: showFilterDialog\n\n' +

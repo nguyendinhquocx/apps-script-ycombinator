@@ -35,11 +35,11 @@
 2. Hoặc tự tạo button và gán function `showFilterDialog`
 
 ### Lọc dữ liệu
-1. Nhấn nút "🔍 Filter HN Posts"
+1. Nhấn nút "Filter"
 2. Nhập số bình luận tối thiểu (mặc định: 100)
 3. Nhập số điểm tối thiểu (để trống = bất kỳ)
-4. Nhấn "🔍 Filter"
-5. Chọn các bài viết muốn mở và nhấn "🚀 Open Selected"
+4. Nhấn "Filter"
+5. Chọn các bài viết muốn mở và nhấn "OK"
 
 ### Debug
 Nếu gặp lỗi, chạy function `debugDataParsing()` để kiểm tra cấu trúc dữ liệu.
