@@ -6,8 +6,8 @@
 function showFilterDialog() {
   try {
     const html = HtmlService.createHtmlOutputFromFile('FilterDialog')
-      .setWidth(450)
-      .setHeight(300);
+      .setWidth(500)
+      .setHeight(450);
     
     SpreadsheetApp.getUi()
       .showModalDialog(html, 'Filter');
@@ -334,10 +334,6 @@ function showResultsDialog(posts) {
             margin-bottom: 15px; 
             font-size: 13px; 
             color: #6b7280; 
-            background: white;
-            position: sticky;
-            top: 35px;
-            z-index: 9;
             padding: 5px 0;
           }
         </style>
